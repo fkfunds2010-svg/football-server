@@ -1,4 +1,4 @@
-const { Server, Room, matchMaker } = require("@colyseus/core");
+const { Server, Room } = require("@colyseus/core");
 const { WebSocketTransport } = require("@colyseus/ws-transport");
 const { Schema, MapSchema } = require("@colyseus/schema");
 const express = require("express");
@@ -320,13 +320,15 @@ app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
 app.use("/playground", playground());
-app.use("/matchmake", matchMaker.express());   // This is the ONLY correct line
 
 const port = process.env.PORT || 2567;
+
+// Start HTTP server first
 const httpServer = app.listen(port, () => {
   console.log(`⚡ HTTP server listening on port ${port}`);
 });
 
+// Attach Colyseus – it will now automatically intercept /matchmake requests
 const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer })
 });
