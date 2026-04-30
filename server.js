@@ -1,4 +1,4 @@
-const { Server, Room, matchMaker } = require("@colyseus/core");
+const { Server, Room } = require("@colyseus/core");
 const { WebSocketTransport } = require("@colyseus/ws-transport");
 const { Schema, MapSchema } = require("@colyseus/schema");
 const express = require("express");
@@ -319,8 +319,27 @@ app.use(express.json());
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
+// Playground – needs to know the WebSocket endpoint
+app.get("/playground", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Colyseus Playground</title>
+      <script src="/playground/js/app.js"></script>
+      <link rel="stylesheet" href="/playground/css/app.css" />
+    </head>
+    <body>
+      <script>
+        window.__COLYSEUS_ENDPOINT__ = "wss://" + location.host;
+      </script>
+      <div id="app"></div>
+    </body>
+    </html>
+  `);
+});
 app.use("/playground", playground());
-matchMaker.exposeRoutes(app);   // ✅ This line fixes the Playground
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
