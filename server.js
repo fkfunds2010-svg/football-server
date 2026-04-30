@@ -1,4 +1,4 @@
-const { Server, Room } = require("@colyseus/core");
+const { Server, Room, matchMaker } = require("@colyseus/core");
 const { WebSocketTransport } = require("@colyseus/ws-transport");
 const { Schema, MapSchema, type } = require("@colyseus/schema");
 const express = require("express");
@@ -269,6 +269,9 @@ app.use(cors());
 
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
+
+// ⭐ THIS LINE FIXES EVERYTHING – mount the matchmaker's HTTP API
+app.use("/matchmake", matchMaker.express());
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
