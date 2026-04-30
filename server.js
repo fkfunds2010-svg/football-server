@@ -331,4 +331,7 @@ const gameServer = new Server({
 });
 gameServer.define("football", FootballRoom);
 
+// ✅ The correct property name is `matchmaker` (lowercase)
+app.use("/matchmake", gameServer.matchmaker.express());
+
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
