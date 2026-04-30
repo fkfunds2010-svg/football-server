@@ -60,7 +60,7 @@ GameState._schema = {
   password: "string", lastWinner: "string"
 };
 
-// ---------- Room (unchanged) ----------
+// ---------- Room ----------
 class FootballRoom extends Room {
   constructor() {
     super();
@@ -319,7 +319,7 @@ app.use(express.json());
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
-// ---------- Playground ----------
+// ---------- Playground landing (forces wss:// and provides matchmaker endpoint) ----------
 app.get("/playground", (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -327,14 +327,15 @@ app.get("/playground", (req, res) => {
     <head>
       <meta charset="utf-8" />
       <title>Colyseus Playground</title>
-      <script src="/playground/js/app.js"></script>
       <link rel="stylesheet" href="/playground/css/app.css" />
     </head>
     <body>
+      <div id="app"></div>
+      <script src="/playground/js/app.js"></script>
       <script>
+        // Override the Colyseus client endpoint to use wss://
         window.__COLYSEUS_ENDPOINT__ = "wss://" + location.host;
       </script>
-      <div id="app"></div>
     </body>
     </html>
   `);
@@ -351,7 +352,8 @@ const gameServer = new Server({
 });
 gameServer.define("football", FootballRoom);
 
-// ✅ THIS LINE FIXES THE PLAYGROUND
-app.use("/matchmake", gameServer.matchMaker.express());
+// ✅ This line exposes the matchmaking HTTP API needed by the Playground.
+//    In Colyseus 0.17 the property is lowercase: gameServer.matchmaker
+app.use("/matchmake", gameServer.matchmaker.express());
 
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
