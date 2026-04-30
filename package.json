@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Colyseus authoritative football server",
   "main": "server.js",
-  "license": "MIT",
   "scripts": {
     "start": "node server.js"
   },
