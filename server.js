@@ -5,23 +5,21 @@ const express = require("express");
 const cors = require("cors");
 const { playground } = require("@colyseus/playground");
 
-// ---------- Schemas (Schema 4.x compatible – no type() calls) ----------
+// ---------- Schemas ----------
 class PlayerState extends Schema {
   constructor() {
     super();
     this.x = 150; this.y = 415; this.vx = 0; this.vy = 0;
     this.isJumping = false; this.color = "#ff00ff"; this.side = "left";
     this.name = ""; this.ready = false; this.accelX = 0;
-    this.reconnecting = false;
-    this.disconnectTime = 0;
+    this.reconnecting = false; this.disconnectTime = 0;
   }
 }
 PlayerState._schema = {
   x: "number", y: "number", vx: "number", vy: "number",
   isJumping: "boolean", color: "string", side: "string",
   name: "string", ready: "boolean", accelX: "number",
-  reconnecting: "boolean",
-  disconnectTime: "number"
+  reconnecting: "boolean", disconnectTime: "number"
 };
 
 class BallState extends Schema {
@@ -319,8 +317,8 @@ app.use(express.json());
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
-// Mount the Playground (no custom HTML page needed)
-app.use("/playground", playground());
+// Mount Playground (no custom HTML needed)
+app.use("/playground", playground);
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
@@ -331,5 +329,8 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer })
 });
 gameServer.define("football", FootballRoom);
+
+// ✅ Register matchmaking HTTP routes (Playground needs this)
+app.use("/matchmake", Server.matchMaker.express());
 
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
