@@ -323,12 +323,10 @@ app.use("/playground", playground());
 
 const port = process.env.PORT || 2567;
 
-// Start HTTP server first
 const httpServer = app.listen(port, () => {
   console.log(`⚡ HTTP server listening on port ${port}`);
 });
 
-// Attach Colyseus – it will now automatically intercept /matchmake requests
 const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer })
 });
