@@ -12,16 +12,16 @@ class PlayerState extends Schema {
     this.x = 150; this.y = 415; this.vx = 0; this.vy = 0;
     this.isJumping = false; this.color = "#ff00ff"; this.side = "left";
     this.name = ""; this.ready = false; this.accelX = 0;
-    this.reconnecting = false;     // ← add this
-    this.disconnectTime = 0;       // ← add this
+    this.reconnecting = false;
+    this.disconnectTime = 0;
   }
 }
 PlayerState._schema = {
   x: "number", y: "number", vx: "number", vy: "number",
   isJumping: "boolean", color: "string", side: "string",
   name: "string", ready: "boolean", accelX: "number",
-  reconnecting: "boolean",        // ← add
-  disconnectTime: "number"        // ← add
+  reconnecting: "boolean",
+  disconnectTime: "number"
 };
 
 class BallState extends Schema {
@@ -60,7 +60,7 @@ GameState._schema = {
   password: "string", lastWinner: "string"
 };
 
-// ---------- Room ----------
+// ---------- Room (unchanged) ----------
 class FootballRoom extends Room {
   constructor() {
     super();
@@ -68,7 +68,7 @@ class FootballRoom extends Room {
     this.state = new GameState();
     this.inputs = {};
     this.targetGoals = 10;
-    this.reconnectTimers = {};   // for reconnection logic
+    this.reconnectTimers = {};
   }
 
   onCreate(options) {
@@ -134,7 +134,6 @@ class FootballRoom extends Room {
   }
 
   onJoin(client, options) {
-    // Password check
     const pass = options?.password;
     if (pass !== this.state.password) {
       client.send("error", { message: "Incorrect password" });
@@ -142,7 +141,6 @@ class FootballRoom extends Room {
       return;
     }
 
-    // Check if player is reconnecting
     const existingPlayer = this.state.players.get(client.sessionId);
     if (existingPlayer) {
       existingPlayer.reconnecting = false;
@@ -155,7 +153,6 @@ class FootballRoom extends Room {
       return;
     }
 
-    // New player
     if (this.clients.length >= 2) {
       client.send("error", { message: "Room is full" });
       client.leave();
@@ -177,7 +174,6 @@ class FootballRoom extends Room {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    // Start reconnection window
     player.reconnecting = true;
     player.disconnectTime = Date.now();
     this.broadcast("opponentReconnecting", { sessionId: client.sessionId });
@@ -188,7 +184,7 @@ class FootballRoom extends Room {
         this.broadcastPlayerInfo();
         this.broadcast("playerLeft", {});
       }
-    }, 30000);  // 30 seconds reconnect window
+    }, 30000);
   }
 
   broadcastPlayerInfo() {
@@ -219,7 +215,6 @@ class FootballRoom extends Room {
     }, 1000);
   }
 
-  // ---------- Physics (identical to your local PvP) ----------
   gameTick() {
     if (this.state.matchState !== "live" || this.state.gameOver || this.state.players.size < 2) return;
     if (this.state.goalFreeze > 0) {
@@ -323,6 +318,28 @@ app.use(express.json());
 
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
+
+// Custom Playground landing – forces wss://
+app.get("/playground", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Colyseus Playground</title>
+      <script src="/playground/js/app.js"></script>
+      <link rel="stylesheet" href="/playground/css/app.css" />
+    </head>
+    <body>
+      <script>
+        window.__COLYSEUS_ENDPOINT__ = "wss://" + location.host;
+      </script>
+      <div id="app"></div>
+    </body>
+    </html>
+  `);
+});
+// Still serve the Playground static assets (JS, CSS)
 app.use("/playground", playground);
 
 const port = process.env.PORT || 2567;
