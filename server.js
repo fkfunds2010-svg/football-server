@@ -1,22 +1,9 @@
-const { Server, Room } = require("@colyseus/core");
+const { Server, Room, matchMaker } = require("@colyseus/core");
 const { WebSocketTransport } = require("@colyseus/ws-transport");
 const { Schema, MapSchema } = require("@colyseus/schema");
 const express = require("express");
 const cors = require("cors");
 const { playground } = require("@colyseus/playground");
-const fs = require("fs");
-const path = require("path");
-
-// ---------- Persistence ----------
-const MATCH_HISTORY_FILE = path.join(__dirname, "matches.json");
-function loadMatches() {
-  try { return JSON.parse(fs.readFileSync(MATCH_HISTORY_FILE, "utf8") || "[]"); } catch { return []; }
-}
-function saveMatch(record) {
-  const matches = loadMatches();
-  matches.push(record);
-  fs.writeFileSync(MATCH_HISTORY_FILE, JSON.stringify(matches, null, 2));
-}
 
 // ---------- Schemas ----------
 class PlayerState extends Schema {
@@ -60,7 +47,6 @@ class GameState extends Schema {
     this.hostId = ""; this.roomCode = "";
     this.countdown = -1; this.goalFreeze = 0;
     this.password = ""; this.lastWinner = "";
-    this.matchId = "";
   }
 }
 GameState._schema = {
@@ -71,8 +57,7 @@ GameState._schema = {
   gameOver: "boolean", winnerMessage: "string",
   matchState: "string", hostId: "string", roomCode: "string",
   countdown: "number", goalFreeze: "number",
-  password: "string", lastWinner: "string",
-  matchId: "string"
+  password: "string", lastWinner: "string"
 };
 
 // ---------- Room ----------
@@ -84,13 +69,11 @@ class FootballRoom extends Room {
     this.inputs = {};
     this.targetGoals = 10;
     this.reconnectTimers = {};
-    this._saved = false;
   }
 
   onCreate(options) {
     this.state.roomCode = this.roomId;
     this.state.password = options.password || Math.random().toString(36).substr(2, 6);
-    this.state.matchId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 
     this.onMessage("setName", (client, name) => {
       const player = this.state.players.get(client.sessionId);
@@ -143,7 +126,6 @@ class FootballRoom extends Room {
       this.state.gameOver = false; this.state.winnerMessage = "";
       this.state.matchState = "waiting"; this.state.countdown = -1;
       this.state.goalFreeze = 0;
-      this.state.matchId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
       this.broadcast("rematch");
       this.broadcastPlayerInfo();
     });
@@ -325,24 +307,6 @@ class FootballRoom extends Room {
         this.state.lastWinner = this.state.p1Score > this.state.p2Score ? "p1" : (this.state.p2Score > this.state.p1Score ? "p2" : "draw");
       }
     }
-
-    // Persist match record
-    if (this.state.gameOver && this.state.matchState === "end" && !this._saved) {
-      const p1 = [...this.state.players.values()].find(p => p.side === "left");
-      const p2 = [...this.state.players.values()].find(p => p.side === "right");
-      saveMatch({
-        matchId: this.state.matchId,
-        roomCode: this.state.roomCode,
-        region: "global",
-        p1Name: p1?.name,
-        p2Name: p2?.name,
-        p1Score: this.state.p1Score,
-        p2Score: this.state.p2Score,
-        winner: this.state.lastWinner,
-        timestamp: new Date().toISOString()
-      });
-      this._saved = true;
-    }
   }
 }
 
@@ -376,6 +340,9 @@ app.get("/playground", (req, res) => {
   `);
 });
 app.use("/playground", playground());
+
+// ✅ The matchmaking HTTP routes – required by the Playground
+app.use("/matchmake", matchMaker.express());
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
