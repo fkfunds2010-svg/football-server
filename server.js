@@ -319,7 +319,7 @@ app.use(express.json());
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
-// Custom Playground landing – forces wss://
+// ---------- Playground ----------
 app.get("/playground", (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -339,7 +339,6 @@ app.get("/playground", (req, res) => {
     </html>
   `);
 });
-// Still serve the Playground static assets (JS, CSS)
 app.use("/playground", playground);
 
 const port = process.env.PORT || 2567;
@@ -351,4 +350,8 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer })
 });
 gameServer.define("football", FootballRoom);
+
+// ✅ THIS LINE FIXES THE PLAYGROUND
+app.use("/matchmake", gameServer.matchMaker.express());
+
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
