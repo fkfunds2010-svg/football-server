@@ -1,4 +1,4 @@
-const { Server, Room } = require("@colyseus/core");
+const { Server, Room, matchMaker } = require("@colyseus/core");
 const { WebSocketTransport } = require("@colyseus/ws-transport");
 const { Schema, MapSchema } = require("@colyseus/schema");
 const express = require("express");
@@ -320,6 +320,8 @@ app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
 app.use("/playground", playground());
+// ✅ This line enables the Playground’s create/join buttons
+app.use("/matchmake", matchMaker.express());
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
@@ -330,8 +332,5 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer })
 });
 gameServer.define("football", FootballRoom);
-
-// ✅ Correct matchmaking route – uses the gameServer instance, not the class
-app.use("/matchmake", gameServer.matchMaker.express());
 
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
