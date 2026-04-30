@@ -12,12 +12,16 @@ class PlayerState extends Schema {
     this.x = 150; this.y = 415; this.vx = 0; this.vy = 0;
     this.isJumping = false; this.color = "#ff00ff"; this.side = "left";
     this.name = ""; this.ready = false; this.accelX = 0;
+    this.reconnecting = false;     // ← add this
+    this.disconnectTime = 0;       // ← add this
   }
 }
 PlayerState._schema = {
   x: "number", y: "number", vx: "number", vy: "number",
   isJumping: "boolean", color: "string", side: "string",
-  name: "string", ready: "boolean", accelX: "number"
+  name: "string", ready: "boolean", accelX: "number",
+  reconnecting: "boolean",        // ← add
+  disconnectTime: "number"        // ← add
 };
 
 class BallState extends Schema {
@@ -64,6 +68,7 @@ class FootballRoom extends Room {
     this.state = new GameState();
     this.inputs = {};
     this.targetGoals = 10;
+    this.reconnectTimers = {};   // for reconnection logic
   }
 
   onCreate(options) {
@@ -129,12 +134,28 @@ class FootballRoom extends Room {
   }
 
   onJoin(client, options) {
+    // Password check
     const pass = options?.password;
     if (pass !== this.state.password) {
       client.send("error", { message: "Incorrect password" });
       client.leave();
       return;
     }
+
+    // Check if player is reconnecting
+    const existingPlayer = this.state.players.get(client.sessionId);
+    if (existingPlayer) {
+      existingPlayer.reconnecting = false;
+      if (this.reconnectTimers[client.sessionId]) {
+        clearTimeout(this.reconnectTimers[client.sessionId]);
+        delete this.reconnectTimers[client.sessionId];
+      }
+      this.broadcast("playerReconnected", {});
+      this.broadcastPlayerInfo();
+      return;
+    }
+
+    // New player
     if (this.clients.length >= 2) {
       client.send("error", { message: "Room is full" });
       client.leave();
@@ -153,9 +174,21 @@ class FootballRoom extends Room {
   }
 
   onLeave(client) {
-    this.state.players.delete(client.sessionId);
-    this.broadcastPlayerInfo();
-    this.broadcast("playerLeft", {});
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+
+    // Start reconnection window
+    player.reconnecting = true;
+    player.disconnectTime = Date.now();
+    this.broadcast("opponentReconnecting", { sessionId: client.sessionId });
+
+    this.reconnectTimers[client.sessionId] = setTimeout(() => {
+      if (player.reconnecting) {
+        this.state.players.delete(client.sessionId);
+        this.broadcastPlayerInfo();
+        this.broadcast("playerLeft", {});
+      }
+    }, 30000);  // 30 seconds reconnect window
   }
 
   broadcastPlayerInfo() {
@@ -186,7 +219,7 @@ class FootballRoom extends Room {
     }, 1000);
   }
 
-  // ---------- Physics (identical to your original) ----------
+  // ---------- Physics (identical to your local PvP) ----------
   gameTick() {
     if (this.state.matchState !== "live" || this.state.gameOver || this.state.players.size < 2) return;
     if (this.state.goalFreeze > 0) {
@@ -194,6 +227,7 @@ class FootballRoom extends Room {
       if (this.state.goalFreeze === 0) this.broadcast("event", { type: "FREEZE_END" });
       return;
     }
+
     const FIXED_DT = 1 / 30;
     const ball = this.state.ball;
 
