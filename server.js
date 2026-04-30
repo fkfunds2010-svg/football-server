@@ -320,7 +320,7 @@ app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
 app.use("/playground", playground());
-matchMaker.exposeRoutes(app);   // ✅ exposes /matchmake/create, /matchmake/joinOrCreate, etc.
+app.use("/matchmake", matchMaker.express());   // ✅ enables Playground create/join
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
