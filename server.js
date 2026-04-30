@@ -4,7 +4,6 @@ const { Schema, MapSchema } = require("@colyseus/schema");
 const express = require("express");
 const cors = require("cors");
 const { playground } = require("@colyseus/playground");
-const { matchMaker } = require("@colyseus/matchmaking");
 
 // ---------- Schemas ----------
 class PlayerState extends Schema {
@@ -321,7 +320,6 @@ app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
 app.use("/playground", playground());
-app.use("/matchmake", matchMaker.express());
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
