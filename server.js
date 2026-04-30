@@ -319,7 +319,6 @@ app.use(express.json());
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
-// Mount the Playground (function call required)
 app.use("/playground", playground());
 
 const port = process.env.PORT || 2567;
@@ -332,7 +331,7 @@ const gameServer = new Server({
 });
 gameServer.define("football", FootballRoom);
 
-// Register matchmaking HTTP routes (Playground needs this)
-app.use("/matchmake", Server.matchMaker.express());
+// ✅ Correct matchmaking route – uses the gameServer instance, not the class
+app.use("/matchmake", gameServer.matchMaker.express());
 
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
