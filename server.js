@@ -1,9 +1,8 @@
-const { Server, Room, matchMaker } = require("@colyseus/core");
+const { Server, Room } = require("@colyseus/core");
 const { WebSocketTransport } = require("@colyseus/ws-transport");
-const { Schema, MapSchema } = require("@colyseus/schema");
+const { Schema, MapSchema, type } = require("@colyseus/schema");
 const express = require("express");
 const cors = require("cors");
-const { playground } = require("@colyseus/playground");
 
 // ---------- Schemas ----------
 class PlayerState extends Schema {
@@ -11,30 +10,34 @@ class PlayerState extends Schema {
     super();
     this.x = 150; this.y = 415; this.vx = 0; this.vy = 0;
     this.isJumping = false; this.color = "#ff00ff"; this.side = "left";
-    this.name = ""; this.ready = false; this.accelX = 0;
-    this.reconnecting = false;
-    this.disconnectTime = 0;
+    this.name = ""; this.ready = false;
   }
 }
-PlayerState._schema = {
-  x: "number", y: "number", vx: "number", vy: "number",
-  isJumping: "boolean", color: "string", side: "string",
-  name: "string", ready: "boolean", accelX: "number",
-  reconnecting: "boolean",
-  disconnectTime: "number"
-};
+type("number")(PlayerState.prototype, "x");
+type("number")(PlayerState.prototype, "y");
+type("number")(PlayerState.prototype, "vx");
+type("number")(PlayerState.prototype, "vy");
+type("boolean")(PlayerState.prototype, "isJumping");
+type("string")(PlayerState.prototype, "color");
+type("string")(PlayerState.prototype, "side");
+type("string")(PlayerState.prototype, "name");
+type("boolean")(PlayerState.prototype, "ready");
 
 class BallState extends Schema {
   constructor() { super(); this.x = 500; this.y = 250; this.vx = 5; this.vy = -3; }
 }
-BallState._schema = { x: "number", y: "number", vx: "number", vy: "number" };
+type("number")(BallState.prototype, "x");
+type("number")(BallState.prototype, "y");
+type("number")(BallState.prototype, "vx");
+type("number")(BallState.prototype, "vy");
 
 class KeeperState extends Schema {
   constructor() { super(); this.y = 250; this.vy = 0; }
 }
-KeeperState._schema = { y: "number", vy: "number" };
+type("number")(KeeperState.prototype, "y");
+type("number")(KeeperState.prototype, "vy");
 
-class GameState extends Schema {
+class FootballState extends Schema {
   constructor() {
     super();
     this.players = new MapSchema();
@@ -49,26 +52,31 @@ class GameState extends Schema {
     this.password = ""; this.lastWinner = "";
   }
 }
-GameState._schema = {
-  players: { map: PlayerState },
-  ball: BallState,
-  keeper1: KeeperState, keeper2: KeeperState,
-  p1Score: "number", p2Score: "number", timeLeft: "number",
-  gameOver: "boolean", winnerMessage: "string",
-  matchState: "string", hostId: "string", roomCode: "string",
-  countdown: "number", goalFreeze: "number",
-  password: "string", lastWinner: "string"
-};
+type({ map: PlayerState })(FootballState.prototype, "players");
+type(BallState)(FootballState.prototype, "ball");
+type(KeeperState)(FootballState.prototype, "keeper1");
+type(KeeperState)(FootballState.prototype, "keeper2");
+type("number")(FootballState.prototype, "p1Score");
+type("number")(FootballState.prototype, "p2Score");
+type("number")(FootballState.prototype, "timeLeft");
+type("boolean")(FootballState.prototype, "gameOver");
+type("string")(FootballState.prototype, "winnerMessage");
+type("string")(FootballState.prototype, "matchState");
+type("string")(FootballState.prototype, "hostId");
+type("string")(FootballState.prototype, "roomCode");
+type("number")(FootballState.prototype, "countdown");
+type("number")(FootballState.prototype, "goalFreeze");
+type("string")(FootballState.prototype, "password");
+type("string")(FootballState.prototype, "lastWinner");
 
 // ---------- Room ----------
 class FootballRoom extends Room {
   constructor() {
     super();
     this.maxClients = 2;
-    this.state = new GameState();
+    this.state = new FootballState();
     this.inputs = {};
     this.targetGoals = 10;
-    this.reconnectTimers = {};
   }
 
   onCreate(options) {
@@ -86,7 +94,6 @@ class FootballRoom extends Room {
       if (player) { player.ready = !player.ready; }
       this.broadcastPlayerInfo();
       if (this.state.players.size === 2 && [...this.state.players.values()].every(p => p.ready)) {
-        this.state.matchState = "ready_check";
         this.startCountdown();
       }
     });
@@ -106,29 +113,7 @@ class FootballRoom extends Room {
       this.broadcast("chat", { sender, text: (msg || "").substring(0, 200) });
     });
 
-    this.onMessage("emote", (client, emoteId) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player) this.broadcast("emote", { playerName: player.name, emoteId });
-    });
-
     this.onMessage("ping", (client, data) => client.send("pong", data));
-
-    this.onMessage("rematch", (client) => {
-      if (this.state.matchState !== "end") return;
-      this.state.players.forEach(p => {
-        p.x = p.side === "left" ? 150 : 820; p.y = 415; p.vx = 0; p.vy = 0;
-        p.isJumping = false; p.ready = false;
-      });
-      this.state.ball.x = 500; this.state.ball.y = 250;
-      this.state.ball.vx = 5; this.state.ball.vy = -3;
-      this.state.p1Score = 0; this.state.p2Score = 0;
-      this.state.timeLeft = 120;
-      this.state.gameOver = false; this.state.winnerMessage = "";
-      this.state.matchState = "waiting"; this.state.countdown = -1;
-      this.state.goalFreeze = 0;
-      this.broadcast("rematch");
-      this.broadcastPlayerInfo();
-    });
 
     this.setSimulationInterval((dt) => this.gameTick(), 1000 / 30);
   }
@@ -140,19 +125,6 @@ class FootballRoom extends Room {
       client.leave();
       return;
     }
-
-    const existingPlayer = this.state.players.get(client.sessionId);
-    if (existingPlayer) {
-      existingPlayer.reconnecting = false;
-      if (this.reconnectTimers[client.sessionId]) {
-        clearTimeout(this.reconnectTimers[client.sessionId]);
-        delete this.reconnectTimers[client.sessionId];
-      }
-      this.broadcast("playerReconnected", {});
-      this.broadcastPlayerInfo();
-      return;
-    }
-
     if (this.clients.length >= 2) {
       client.send("error", { message: "Room is full" });
       client.leave();
@@ -171,20 +143,9 @@ class FootballRoom extends Room {
   }
 
   onLeave(client) {
-    const player = this.state.players.get(client.sessionId);
-    if (!player) return;
-
-    player.reconnecting = true;
-    player.disconnectTime = Date.now();
-    this.broadcast("opponentReconnecting", { sessionId: client.sessionId });
-
-    this.reconnectTimers[client.sessionId] = setTimeout(() => {
-      if (player.reconnecting) {
-        this.state.players.delete(client.sessionId);
-        this.broadcastPlayerInfo();
-        this.broadcast("playerLeft", {});
-      }
-    }, 30000);
+    this.state.players.delete(client.sessionId);
+    this.broadcastPlayerInfo();
+    this.broadcast("playerLeft", {});
   }
 
   broadcastPlayerInfo() {
@@ -239,14 +200,9 @@ class FootballRoom extends Room {
         else ball.vy = -2;
         this.broadcast("event", { type: "SHOT", data: { turbo: input.turbo, color: player.color } });
       } else {
-        const accel = 0.6;
-        if (input.left) player.accelX -= accel;
-        if (input.right) player.accelX += accel;
-        if (!input.left && !input.right) player.accelX *= 0.85;
-        player.accelX = Math.min(Math.max(player.accelX, -3), 3);
-        player.vx += player.accelX;
-        player.vx *= 0.9;
-        if (input.up && !player.isJumping) { player.vy = -14; player.isJumping = true; }
+        if (input.left) player.vx -= 1.3;
+        if (input.right) player.vx += 1.3;
+        if (input.up && !player.isJumping) { player.vy = -12; player.isJumping = true; }
         if (input.down) player.vy += 1;
       }
     });
@@ -304,54 +260,26 @@ class FootballRoom extends Room {
       if (this.state.timeLeft <= 0) {
         this.state.gameOver = true; this.state.matchState = "end";
         this.state.winnerMessage = this.state.p1Score > this.state.p2Score ? "Player 1 Wins!" : (this.state.p2Score > this.state.p1Score ? "Player 2 Wins!" : "Draw!");
-        this.state.lastWinner = this.state.p1Score > this.state.p2Score ? "p1" : (this.state.p2Score > this.state.p1Score ? "p2" : "draw");
       }
     }
   }
 }
 
-// ---------- Express & Colyseus server ----------
+// ---------- Express server ----------
 const app = express();
 app.set("trust proxy", 1);
 app.use(cors());
-app.use(express.json());
 
 app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
-// Custom Playground page that forces wss:// connection
-app.get("/playground", (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8" />
-      <title>Colyseus Playground</title>
-      <script src="/playground/js/app.js"></script>
-      <link rel="stylesheet" href="/playground/css/app.css" />
-    </head>
-    <body>
-      <script>
-        window.__COLYSEUS_ENDPOINT__ = "wss://" + location.host;
-      </script>
-      <div id="app"></div>
-    </body>
-    </html>
-  `);
-});
-app.use("/playground", playground());
-
-// ✅ The matchmaking HTTP routes – required by the Playground
-app.use("/matchmake", matchMaker.express());
-
 const port = process.env.PORT || 2567;
-const httpServer = app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`⚡ HTTP server listening on port ${port}`);
 });
 
 const gameServer = new Server({
-  transport: new WebSocketTransport({ server: httpServer })
+  transport: new WebSocketTransport({ server })
 });
 gameServer.define("football", FootballRoom);
-
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
