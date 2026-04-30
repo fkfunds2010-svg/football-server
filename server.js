@@ -1,4 +1,4 @@
-const { Server, Room } = require("@colyseus/core");
+const { Server, Room, matchMaker } = require("@colyseus/core");
 const { WebSocketTransport } = require("@colyseus/ws-transport");
 const { Schema, MapSchema } = require("@colyseus/schema");
 const express = require("express");
@@ -320,6 +320,7 @@ app.get("/", (_, res) => res.send("Football server is running ✅"));
 app.get("/health", (_, res) => res.send("OK"));
 
 app.use("/playground", playground());
+app.use("/matchmake", matchMaker.express());   // ✅ enables Playground create/join
 
 const port = process.env.PORT || 2567;
 const httpServer = app.listen(port, () => {
@@ -330,8 +331,5 @@ const gameServer = new Server({
   transport: new WebSocketTransport({ server: httpServer })
 });
 gameServer.define("football", FootballRoom);
-
-// ✅ The correct property name is `matchmaker` (lowercase)
-app.use("/matchmake", gameServer.matchmaker.express());
 
 console.log(`⚡ Colyseus WebSocket ready on port ${port}`);
